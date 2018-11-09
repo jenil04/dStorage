@@ -1,72 +1,105 @@
-var crypto = require('crypto');
-var fs = require('fs');
-var express = require('express');
-var cors = require('cors');
+var socketClient  = require('socket.io-client');
+var debug         = require('debug')('streams');
+var ss            = require("socket.io-stream");
+var fs            = require('fs');
+var PORT          = 5000;
+var URL           = "http://localhost:"+PORT;
+var MerkleTree    = require('merkletreejs')
+const crypto      = require('crypto')
+const SHA256      = require('crypto-js/sha256');
 
-var data = fs.readFileSync('data.json');
 
-var app = express();
-app.use(express.static('public'));   //for hosting files.
-app.use(cors());
+server();
+blobber("storedFile",true,true);
 
-var storedData;
-
-var exists = fs.existsSync('data.json');
-
-if (exists) {
-
-  // Read the file
-  console.log('loading data...');
-  var txt = fs.readFileSync('data.json', 'utf8');
-
-  // Parse it  back to object
-  storedData = JSON.parse(txt);
-  
-} else {
-  // Otherwise start with blank list
-  console.log('No data found...');
-  storedData = {};
+// SERVER
+function server() { 
+  var http = require('http').Server();
+  var io   = require('socket.io')(http);
+  http.listen(PORT, function(){
+    debug('server listening on *:' + PORT);
+  });
+  var nsp = io.of('/');
+  var consumers = [];
+  nsp.on('connection', function(socket) {
+    var query = socket.handshake.query;
+    debug("server: new connection: ",query.name);
+    //var streamingSocket = ss(socket);
+    consumers.push(socket);
+  });
+  // at an arbitrary interval the server sends an image arround
+  setInterval(function() {
+    debug("broadcast image");
+    var filename = "ConsensusProc.png";
+    var readStream = fs.createReadStream("assets/"+filename);
+    readStream.resume();                                  // switch the stream into flowing-mode
+    consumers.forEach(function(consumer,index) {
+      debug("pipe to consumer: ",index);
+      var outgoingStream = ss.createStream();
+      ss(consumer).emit('file',outgoingStream,{name:filename});
+      readStream.pipe(outgoingStream);
+      //console.log(consumers);
+    });
+  },2000); 
 }
 
-//Setting up the server
-var server = app.listen(process.env.PORT || 3000, listen);
+//CLIENT
+function blobber(name,listen,write) {
+  var serverSocket = socketClient(URL+"?name="+name,{forceNew:true});
+  var serverStreamSocket = ss(serverSocket);
+  var counter = 0;
+  var blobList = [];
 
-// This call back tells us that the server has started
-function listen() {
-  var host = server.address().address;
-  var port = server.address().port;
-  console.log('Testing environment listening at http://' + host + ':' + port);
+  serverSocket.once('connect', function(){
+    debug("blobber: "+name+" connected");
+
+    if(listen) {
+      serverStreamSocket.on("file",function(stream,data) {
+        debug("blobber: on file");
+        if(write) {
+          stream.pipe(fs.createWriteStream(name+"-"+data.name));
+          //counter++;
+          
+        }
+      });
+    }
+  });
+
+  // MERKLE TREE 
+function sha256(data) {
+  // returns Buffer
+  return crypto.createHash('sha256').update(data).digest();
 }
 
-app.get('/store/:content', storeFile);
+var leaves = ['a', 'b', 'c'].map(x => sha256(x));
+var tree = new MerkleTree(leaves, sha256);
+console.log(tree.getRoot());
+console.log(tree);
 
- 
-  function storeFile(req, res){
-  var content = req.params.content;
- 
-  // Put it in the object
-  storedData[content] = content;
-
-  // Let the request know it's all set
-  var reply = {
-    status: 'success',
-    content: content,
-  }
-
-  // Let the request know it's all set
-  var reply = {
-    status: 'success',
-    content: content,
-  }
-
-  console.log('adding: ' + JSON.stringify(reply));
-
-  // Write a file each time we get a new word
-  var json = JSON.stringify(storedData, null, 2);
-  fs.writeFile('data.json', json, 'utf8', finished);
-
-  function finished(err) {
-    console.log('Finished writing data.json');
-    res.send(reply);
+function hashAlgorithm(data){
+  if (blobber("storedFile", true, true)){
+      return SHA256(readStream).toString();
+      blobList.push(readStream);
   }
 }
+    console.log(blobList); 
+//Returns true if the proof path (array of hashes) can connect the target node to the Merkle root.
+
+function challengeProtocol(tree){
+  verified = false
+  for (i = 0; i < tree.leaves; i++){
+    verified = tree.verify(proof, leaves[Math.random(i)], root);
+
+    if(verified){
+      return true;
+    }
+    else{
+      return false;
+    }
+  }
+}
+
+}
+
+
+
