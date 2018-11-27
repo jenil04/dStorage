@@ -84,7 +84,7 @@ function blobber(name,listen,write) {
           stream.pipe(fs.createWriteStream(name+"-"+data.name));
           console.log("The blob list is: " + blobList);
           var tree = new MerkleTree(blobList, SHA256);
-          console.log("The current tree looks like: " + tree);
+          console.log("The current tree looks like: " + tree.leaves);
           
           for (i = 0; i < tree.leaves; i++){
             verified = tree.verify(proof, leaves[Math.random(i)], root);
