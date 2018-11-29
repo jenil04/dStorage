@@ -1,5 +1,3 @@
-//import { Stream } from 'stream';
-
 var socketClient  = require('socket.io-client');
 var debug         = require('debug')('streams');
 var ss            = require("socket.io-stream");
@@ -20,11 +18,6 @@ var MerkleTree    = require('merkletreejs')
 server();
 blobber("storedFile",true, true);
 
-//hashing function
-function genHash(data){
-  return SHA256(this.data);
-}
-
 //server
 function server() { 
   var http = require('http').Server();
@@ -39,12 +32,24 @@ function server() {
     debug("server: new connection: ",query.name);
     //var streamingSocket = ss(socket);
     consumers.push(socket);
-  });
 
-  setInterval(function() {
     debug("broadcast image");
     var filename = "ConsensusProc.png";
-    var filename2 = "ise_tb.pdf"
+    var filename2 = "ise_tb.pdf";
+    //var filename3 = "";
+    //var filename4 = "";
+    //var filename5 = "";
+    //var filename6 = "";
+    //var filename7 = "";
+    //var filename8 = "";
+    //var filename9 = "";
+    //var filename10 = "";
+    //var filename11 = "";
+    //var filename12 = "";
+    //var filename13 = "";
+    //var filename14 = "";
+    //var filename15 = "";
+    //var filename16 = "";
     var readStream = fs.createReadStream("assets/"+filename);
     var readStream2 = fs.createReadStream("assets/" + filename2);
     readStream.resume();
@@ -58,8 +63,8 @@ function server() {
       ss(consumer).emit('file', outgoingStream2, {name:filename2});
       readStream.pipe(outgoingStream);
       readStream2.pipe(outgoingStream2);
-    });
-  }, 2000); 
+    }); 
+  });
 }
 
 
@@ -69,7 +74,7 @@ function blobber(name,listen,write) {
   var serverStreamSocket = ss(serverSocket);
   var counter = 0;
   var blobList = [];
-  var verified = false;
+  var k = false;
   
   serverSocket.once('connect', function(){
     debug("blobber: "+name+" connected");
@@ -78,29 +83,28 @@ function blobber(name,listen,write) {
       serverStreamSocket.on("file",function(stream,data) {
         debug("blobber: on file");
         console.log("The file that is being stored is: " + data.name);
-        blobList.push(genHash(data));
+        blobList.push(SHA256(stream));
 
         if(write) {
           stream.pipe(fs.createWriteStream(name+"-"+data.name));
           console.log("The blob list is: " + blobList);
           var tree = new MerkleTree(blobList, SHA256);
-          console.log("The current tree looks like: " + tree.leaves);
-          
+          console.log("The current tree looks like: " + tree);
+
+          //challenge protocol
           for (i = 0; i < tree.leaves; i++){
-            verified = tree.verify(proof, leaves[Math.random(i)], root);
-        
-            if(verified){
-              return true;
+            let verified = tree.verify(proof, leaves[Math.random(i)], root);
+            console.log(verified);
+              if(verified){
+              k = true;
             }
             else{
               return false;
             }
           }
+            console.log("Blobber is cheating: " + k);
 
-          console.log("Blobber is cheating: " + verified);
-
-          
-        }
+      }
       serverStreamSocket.on('end', function(){
           console.log('final output '+ data);
       });
@@ -108,11 +112,6 @@ function blobber(name,listen,write) {
       })
     }
   });
-
-
-
-
-
 }
 
 
